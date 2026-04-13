@@ -58,16 +58,16 @@ def discord_embed(description, thumbnail=False):
 # 하이퍼파라미터
 # ════════════════════════════════════════
 
-BATCH_SIZE = 6              # per_device_train_batch_size
-GRAD_ACCUM = 2              # gradient_accumulation_steps
+BATCH_SIZE = int(os.environ.get("BATCH_SIZE", 6))
+GRAD_ACCUM = int(os.environ.get("GRAD_ACCUM", 2))
                             # → Total Batch Size = BATCH_SIZE × GRAD_ACCUM × GPU 수
 
-LORA_R = 16                 # LoRA rank (클수록 표현력 ↑, VRAM ↑)
-LORA_ALPHA = 16             # LoRA alpha (보통 r과 같거나 2배)
+LORA_R = int(os.environ.get("LORA_R", 16))
+LORA_ALPHA = int(os.environ.get("LORA_ALPHA", 16))
 
-LEARNING_RATE = 2e-4        # 학습률
-NUM_EPOCHS = 3              # 학습 에폭 수
-WARMUP_STEPS = 50           # 워밍업 스텝
+LEARNING_RATE = float(os.environ.get("LEARNING_RATE", 2e-4))
+NUM_EPOCHS = int(os.environ.get("NUM_EPOCHS", 3))
+WARMUP_STEPS = int(os.environ.get("WARMUP_STEPS", 50))
 
 Image.MAX_IMAGE_PIXELS = None
 
