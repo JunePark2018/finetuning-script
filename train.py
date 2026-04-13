@@ -54,6 +54,21 @@ def discord_embed(description, thumbnail=False):
     return {**DISCORD_BOT, "embeds": [embed]}
 
 
+# ════════════════════════════════════════
+# 하이퍼파라미터
+# ════════════════════════════════════════
+
+BATCH_SIZE = 6              # per_device_train_batch_size
+GRAD_ACCUM = 2              # gradient_accumulation_steps
+                            # → Total Batch Size = BATCH_SIZE × GRAD_ACCUM × GPU 수
+
+LORA_R = 16                 # LoRA rank (클수록 표현력 ↑, VRAM ↑)
+LORA_ALPHA = 16             # LoRA alpha (보통 r과 같거나 2배)
+
+LEARNING_RATE = 2e-4        # 학습률
+NUM_EPOCHS = 3              # 학습 에폭 수
+WARMUP_STEPS = 50           # 워밍업 스텝
+
 Image.MAX_IMAGE_PIXELS = None
 
 # ════════════════════════════════════════
@@ -277,8 +292,6 @@ except Exception as e:
 # 5. LoRA 설정
 # ════════════════════════════════════════
 
-LORA_R = 16
-LORA_ALPHA = 16
 notify_discord_json(discord_embed(f"⚙️ [5/9] LoRA 어댑터를 설정합니다. (r={LORA_R}, alpha={LORA_ALPHA})"))
 try:
     model = FastVisionModel.get_peft_model(
@@ -304,9 +317,7 @@ except Exception as e:
 # 6. 학습
 # ════════════════════════════════════════
 
-NUM_EPOCHS = 3
-BATCH_SIZE = 6
-notify_discord_json(discord_embed(f"@everyone\n🚀 [6/9] 학습을 시작합니다! ({NUM_EPOCHS} epochs, batch={BATCH_SIZE})"))
+notify_discord_json(discord_embed(f"@everyone\n🚀 [6/9] 학습을 시작합니다! ({NUM_EPOCHS} epochs, batch={BATCH_SIZE}×{GRAD_ACCUM}={BATCH_SIZE*GRAD_ACCUM})"))
 try:
     from unsloth.trainer import UnslothVisionDataCollator
     from trl import SFTTrainer, SFTConfig
@@ -323,10 +334,10 @@ try:
         eval_dataset=val_dataset,
         args=SFTConfig(
             per_device_train_batch_size=BATCH_SIZE,
-            gradient_accumulation_steps=2,
-            warmup_steps=50,
+            gradient_accumulation_steps=GRAD_ACCUM,
+            warmup_steps=WARMUP_STEPS,
             num_train_epochs=NUM_EPOCHS,
-            learning_rate=2e-4,
+            learning_rate=LEARNING_RATE,
             bf16=True,
             logging_steps=10,
             save_strategy="epoch",
