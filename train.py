@@ -8,6 +8,7 @@
 import json
 import os
 import random
+import time
 import requests
 
 from PIL import Image
@@ -55,12 +56,11 @@ def discord_embed(description, thumbnail=False):
 
 
 # ════════════════════════════════════════
-# 하이퍼파라미터
+# 하이퍼파라미터 (환경변수로 오버라이드 가능)
 # ════════════════════════════════════════
 
 BATCH_SIZE = int(os.environ.get("BATCH_SIZE", 6))
 GRAD_ACCUM = int(os.environ.get("GRAD_ACCUM", 2))
-                            # → Total Batch Size = BATCH_SIZE × GRAD_ACCUM × GPU 수
 
 LORA_R = int(os.environ.get("LORA_R", 16))
 LORA_ALPHA = int(os.environ.get("LORA_ALPHA", 16))
@@ -69,19 +69,36 @@ LEARNING_RATE = float(os.environ.get("LEARNING_RATE", 2e-4))
 NUM_EPOCHS = int(os.environ.get("NUM_EPOCHS", 3))
 WARMUP_STEPS = int(os.environ.get("WARMUP_STEPS", 50))
 
+print("=" * 60)
+print("하이퍼파라미터")
+print("=" * 60)
+print(f"  BATCH_SIZE     = {BATCH_SIZE}")
+print(f"  GRAD_ACCUM     = {GRAD_ACCUM}")
+print(f"  Total Batch    = {BATCH_SIZE} × {GRAD_ACCUM} = {BATCH_SIZE * GRAD_ACCUM}")
+print(f"  LORA_R         = {LORA_R}")
+print(f"  LORA_ALPHA     = {LORA_ALPHA}")
+print(f"  LEARNING_RATE  = {LEARNING_RATE}")
+print(f"  NUM_EPOCHS     = {NUM_EPOCHS}")
+print(f"  WARMUP_STEPS   = {WARMUP_STEPS}")
+print("=" * 60)
+
 Image.MAX_IMAGE_PIXELS = None
 
 # ════════════════════════════════════════
 # 1. 데이터셋 경로
 # ════════════════════════════════════════
 
+print("\n[1/9] 데이터셋 경로 확인...")
 notify_discord_json(discord_embed("📂 [1/9] 데이터셋 경로를 확인합니다.", thumbnail=True))
 try:
     DATA_DIR = "/workspace/data"
 
     assert os.path.exists(os.path.join(DATA_DIR, "train.jsonl")), \
         f"데이터셋이 없습니다: {DATA_DIR}/train.jsonl"
-    print(f"데이터셋 경로: {DATA_DIR}")
+    print(f"  DATA_DIR = {DATA_DIR}")
+    print(f"  train.jsonl ✓")
+    print(f"  val.jsonl   {'✓' if os.path.exists(os.path.join(DATA_DIR, 'val.jsonl')) else '✗'}")
+    print(f"  test.jsonl  {'✓' if os.path.exists(os.path.join(DATA_DIR, 'test.jsonl')) else '✗'}")
     notify_discord_json(discord_embed("✅ [1/9] 데이터셋 경로 확인 완료. (train.jsonl, val.jsonl)"))
 except Exception as e:
     notify_discord_json(discord_embed(f"❌ [1/9] 데이터셋 경로 확인 실패: {e}"))
@@ -91,6 +108,7 @@ except Exception as e:
 # 2. 이미지 전처리 (크롭 → 디스크 저장)
 # ════════════════════════════════════════
 
+print("\n[2/9] 이미지 전처리...")
 notify_discord_json(discord_embed("🖼️ [2/9] 이미지 전처리를 시작합니다. (크롭 → 디스크 저장)"))
 try:
     PROMPTS = [
@@ -144,11 +162,12 @@ try:
         if os.path.exists(out_jsonl):
             with open(out_jsonl, "r") as f:
                 count = sum(1 for _ in f)
-            print(f"  [{split}] 이미 전처리 완료: {count}건")
+            print(f"  [{split}] 이미 전처리 완료: {count}건 (캐시 사용)")
             return count
 
         with open(jsonl_path, "r", encoding="utf-8") as f:
             total = sum(1 for _ in f)
+        print(f"  [{split}] 전처리 시작: {total}건")
 
         out_file = open(out_jsonl, "w", encoding="utf-8")
         count = 0
@@ -230,8 +249,10 @@ try:
 
 
     random.seed(42)
+    t0 = time.time()
     num_train = preprocess_split("train")
     num_val = preprocess_split("val")
+    print(f"  전처리 소요 시간: {time.time() - t0:.1f}s")
     notify_discord_json(discord_embed(f"✅ [2/9] 전처리 완료! (train {num_train}건, val {num_val}건)"))
 except Exception as e:
     notify_discord_json(discord_embed(f"❌ [2/9] 이미지 전처리 중 에러 발생: {e}"))
@@ -241,6 +262,7 @@ except Exception as e:
 # 3. 데이터 로딩 (경로 기반 — RAM 절약)
 # ════════════════════════════════════════
 
+print("\n[3/9] 데이터 로딩...")
 notify_discord_json(discord_embed("📊 [3/9] 데이터를 로딩합니다."))
 try:
     def load_dataset_from_cropped_jsonl(split="train"):
@@ -258,9 +280,11 @@ try:
         return dataset
 
     random.seed(42)
+    t0 = time.time()
     train_dataset = load_dataset_from_cropped_jsonl("train")
     val_dataset = load_dataset_from_cropped_jsonl("val")
-    print(f"Train: {len(train_dataset)}건, Val: {len(val_dataset)}건")
+    print(f"  Train: {len(train_dataset)}건, Val: {len(val_dataset)}건")
+    print(f"  로딩 소요 시간: {time.time() - t0:.1f}s")
     notify_discord_json(discord_embed(f"✅ [3/9] 데이터 로딩 완료! (Train {len(train_dataset)}건, Val {len(val_dataset)}건)"))
 except Exception as e:
     notify_discord_json(discord_embed(f"❌ [3/9] 데이터 로딩 중 에러 발생: {e}"))
@@ -270,6 +294,7 @@ except Exception as e:
 # 4. 모델 로딩
 # ════════════════════════════════════════
 
+print("\n[4/9] 모델 로딩...")
 notify_discord_json(discord_embed("🤖 [4/9] Qwen3.5-9B 모델을 로딩합니다."))
 try:
     import torch
@@ -278,11 +303,19 @@ try:
     os.environ["HF_HOME"] = "/workspace/hf_cache"
     os.environ["TRANSFORMERS_CACHE"] = "/workspace/hf_cache"
 
+    print(f"  HF_HOME = {os.environ['HF_HOME']}")
+    print(f"  CUDA 사용 가능: {torch.cuda.is_available()}")
+    if torch.cuda.is_available():
+        print(f"  GPU: {torch.cuda.get_device_name(0)}")
+        print(f"  VRAM: {torch.cuda.get_device_properties(0).total_mem / 1024**3:.1f} GB")
+
+    t0 = time.time()
     model, tokenizer = FastVisionModel.from_pretrained(
         "unsloth/Qwen3.5-9B",
         load_in_4bit=False,
         use_gradient_checkpointing="unsloth",
     )
+    print(f"  모델 로딩 소요 시간: {time.time() - t0:.1f}s")
     notify_discord_json(discord_embed("✅ [4/9] 모델 로딩 완료!"))
 except Exception as e:
     notify_discord_json(discord_embed(f"❌ [4/9] 모델 로딩 중 에러 발생: {e}"))
@@ -292,6 +325,7 @@ except Exception as e:
 # 5. LoRA 설정
 # ════════════════════════════════════════
 
+print(f"\n[5/9] LoRA 설정 (r={LORA_R}, alpha={LORA_ALPHA})...")
 notify_discord_json(discord_embed(f"⚙️ [5/9] LoRA 어댑터를 설정합니다. (r={LORA_R}, alpha={LORA_ALPHA})"))
 try:
     model = FastVisionModel.get_peft_model(
@@ -308,6 +342,9 @@ try:
         use_rslora=False,
         loftq_config=None,
     )
+    trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    total = sum(p.numel() for p in model.parameters())
+    print(f"  학습 가능 파라미터: {trainable:,} / {total:,} ({trainable/total*100:.2f}%)")
     notify_discord_json(discord_embed("✅ [5/9] LoRA 설정 완료!"))
 except Exception as e:
     notify_discord_json(discord_embed(f"❌ [5/9] LoRA 설정 중 에러 발생: {e}"))
@@ -317,6 +354,7 @@ except Exception as e:
 # 6. 학습
 # ════════════════════════════════════════
 
+print(f"\n[6/9] 학습 시작 ({NUM_EPOCHS} epochs, batch={BATCH_SIZE}×{GRAD_ACCUM}={BATCH_SIZE*GRAD_ACCUM}, lr={LEARNING_RATE})...")
 notify_discord_json(discord_embed(f"@everyone\n🚀 [6/9] 학습을 시작합니다! ({NUM_EPOCHS} epochs, batch={BATCH_SIZE}×{GRAD_ACCUM}={BATCH_SIZE*GRAD_ACCUM})"))
 try:
     from unsloth.trainer import UnslothVisionDataCollator
@@ -358,7 +396,17 @@ try:
         ),
     )
 
+    # 체크포인트 존재 확인
+    ckpts = [d for d in os.listdir(OUTPUT_DIR) if d.startswith("checkpoint-")] if os.path.exists(OUTPUT_DIR) else []
+    if ckpts:
+        print(f"  체크포인트 발견: {sorted(ckpts)} → 이어서 학습")
+    else:
+        print(f"  체크포인트 없음 → 처음부터 학습")
+
+    t0 = time.time()
     trainer.train(resume_from_checkpoint=True)
+    train_time = time.time() - t0
+    print(f"  학습 소요 시간: {train_time/60:.1f}분")
     notify_discord_json(discord_embed("@everyone\n✅ [6/9] 학습 완료!"))
 except Exception as e:
     notify_discord_json(discord_embed(f"@everyone\n❌ [6/9] 학습 중 에러 발생: {e}"))
@@ -368,13 +416,17 @@ except Exception as e:
 # 7. 모델 저장
 # ════════════════════════════════════════
 
+print("\n[7/9] 모델 저장...")
 notify_discord_json(discord_embed("💾 [7/9] LoRA 어댑터를 저장합니다."))
 try:
     LORA_DIR = "pest-detector-lora"
 
     model.save_pretrained(LORA_DIR)
     tokenizer.save_pretrained(LORA_DIR)
-    print(f"LoRA 어댑터 저장 완료: {LORA_DIR}")
+    lora_files = os.listdir(LORA_DIR)
+    lora_size = sum(os.path.getsize(os.path.join(LORA_DIR, f)) for f in lora_files) / 1024**2
+    print(f"  저장 경로: {LORA_DIR}/")
+    print(f"  파일 수: {len(lora_files)}, 총 크기: {lora_size:.1f} MB")
     notify_discord_json(discord_embed("✅ [7/9] 모델 저장 완료! (pest-detector-lora/)"))
 except Exception as e:
     notify_discord_json(discord_embed(f"❌ [7/9] 모델 저장 중 에러 발생: {e}"))
@@ -384,8 +436,10 @@ except Exception as e:
 # 8. 추론 테스트
 # ════════════════════════════════════════
 
+print("\n[8/9] 추론 테스트...")
 notify_discord_json(discord_embed("@everyone\n🔍 [8/9] 추론 테스트를 시작합니다."))
 try:
+    print("  LoRA 어댑터 리로드 중...")
     model, tokenizer = FastVisionModel.from_pretrained(
         "pest-detector-lora",
         load_in_4bit=False,
@@ -395,8 +449,10 @@ try:
     test_dir = os.path.join(DATA_DIR, "test", "썩덩나무노린재")
     test_images = [f for f in os.listdir(test_dir) if f.lower().endswith((".jpg", ".jpeg", ".png"))]
     TEST_IMAGE = os.path.join(test_dir, test_images[0])
+    print(f"  테스트 이미지: {TEST_IMAGE}")
 
     image = Image.open(TEST_IMAGE).convert("RGB")
+    print(f"  이미지 크기: {image.size}")
 
     messages = [
         {"role": "system", "content": [
@@ -415,19 +471,22 @@ try:
         add_special_tokens=False,
         return_tensors="pt",
     ).to("cuda")
+    print(f"  입력 토큰 수: {inputs['input_ids'].shape[-1]}")
 
+    t0 = time.time()
     output = model.generate(
         **inputs,
         max_new_tokens=20,
         use_cache=True,
         temperature=0.1,
     )
+    inference_time = time.time() - t0
     generated_ids = output[0][inputs["input_ids"].shape[-1]:]
     prediction = tokenizer.decode(generated_ids, skip_special_tokens=True).strip()
     image.close()
 
-    print(f"추론 테스트 - 이미지: {TEST_IMAGE}")
-    print(f"추론 테스트 - 예측: {prediction}")
+    print(f"  예측 결과: {prediction}")
+    print(f"  추론 시간: {inference_time:.2f}s")
     notify_discord_json(discord_embed(f"@everyone\n✅ [8/9] 추론 테스트 완료! 예측: {prediction}"))
 except Exception as e:
     notify_discord_json(discord_embed(f"@everyone\n❌ [8/9] 추론 테스트 중 에러 발생: {e}"))
@@ -437,18 +496,21 @@ except Exception as e:
 # 9. HuggingFace Hub에 업로드
 # ════════════════════════════════════════
 
+print("\n[9/9] HuggingFace Hub 업로드...")
 HF_TOKEN = os.environ.get("HF_TOKEN", "")
 HF_REPO_NAME = os.environ.get("HF_REPO_NAME", "")
 
 if HF_TOKEN and HF_REPO_NAME:
     notify_discord_json(discord_embed("☁️ [9/9] HuggingFace Hub에 업로드합니다."))
     try:
+        print(f"  대상 레포: {HF_REPO_NAME}")
+        t0 = time.time()
         model.push_to_hub(
             HF_REPO_NAME,
             tokenizer,
             token=HF_TOKEN,
         )
-        print("업로드 완료!")
+        print(f"  업로드 완료! ({time.time() - t0:.1f}s)")
         notify_discord_json(discord_embed("✅ [9/9] 업로드 완료! 모든 파이프라인이 끝났습니다! 🎉"))
     except Exception as e:
         notify_discord_json(discord_embed(f"❌ [9/9] HuggingFace Hub 업로드 중 에러 발생: {e}"))
@@ -459,5 +521,9 @@ else:
         missing.append("HF_TOKEN")
     if not HF_REPO_NAME:
         missing.append("HF_REPO_NAME")
-    print(f"{', '.join(missing)} 미설정 — 업로드를 건너뜁니다.")
+    print(f"  {', '.join(missing)} 미설정 — 업로드 건너뜀")
     notify_discord_json(discord_embed(f"✅ [9/9] Hub 업로드 건너뜀 ({', '.join(missing)} 미설정). 파이프라인 완료! 🎉"))
+
+print("\n" + "=" * 60)
+print("파이프라인 완료!")
+print("=" * 60)
