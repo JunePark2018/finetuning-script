@@ -7,15 +7,25 @@
 import argparse
 import json
 import os
+import time
 import requests
 
 from PIL import Image
 from unsloth import FastVisionModel
 from sklearn.metrics import (
     accuracy_score,
-    classification_report,
+    precision_score,
+    recall_score,
+    f1_score,
     confusion_matrix,
 )
+
+
+DISCORD_BOT = {
+    "username": "RunPod",
+    "avatar_url": "https://i.imgur.com/0HOIh4r.png",
+}
+DISCORD_COLOR = 12648430
 
 
 def notify_discord(message):
@@ -38,6 +48,12 @@ def notify_discord_json(payload):
         requests.post(url, json=payload, timeout=10)
     except Exception as e:
         print(f"Discord 알림 실패: {e}")
+
+
+def discord_embed(description):
+    """Embed payload 생성 헬퍼"""
+    return {**DISCORD_BOT, "embeds": [{"description": description, "color": DISCORD_COLOR}]}
+
 
 DATA_DIR = "/workspace/data"
 
@@ -106,7 +122,6 @@ def predict_single(model, tokenizer, image_path):
         temperature=0.1,
     )
 
-    # 생성된 토큰만 디코딩
     generated_ids = output[0][inputs["input_ids"].shape[-1]:]
     prediction = tokenizer.decode(generated_ids, skip_special_tokens=True).strip()
 
@@ -117,7 +132,7 @@ def predict_single(model, tokenizer, image_path):
 def evaluate(model_path):
     """test 데이터셋 전체에 대해 평가 실행"""
     # 모델 로딩
-    notify_discord("🔍 **[1/3] 평가 모델을 로딩합니다.**")
+    notify_discord_json(discord_embed("🔍 [1/3] 평가 모델을 로딩합니다."))
     try:
         print(f"모델 로딩: {model_path}")
         model, tokenizer = FastVisionModel.from_pretrained(
@@ -125,22 +140,26 @@ def evaluate(model_path):
             load_in_4bit=False,
         )
         FastVisionModel.for_inference(model)
-        notify_discord("✅ **[1/3] 모델 로딩 완료!**")
+        notify_discord_json(discord_embed("✅ [1/3] 모델 로딩 완료!"))
     except Exception as e:
-        notify_discord(f"❌ **[1/3] 모델 로딩 중 에러 발생:**\n```\n{e}\n```")
+        notify_discord_json(discord_embed(f"❌ [1/3] 모델 로딩 중 에러 발생: {e}"))
         raise
 
     # 데이터 로딩 + 추론
-    notify_discord("📊 **[2/3] 테스트 데이터 추론을 시작합니다.**")
+    notify_discord_json(discord_embed("📊 [2/3] 테스트 데이터 추론을 시작합니다."))
     try:
         samples = load_test_dataset()
         print(f"테스트 샘플: {len(samples)}건\n")
 
         y_true = []
         y_pred = []
+        inference_times = []
 
         for i, (img_path, label) in enumerate(samples):
+            t_start = time.time()
             pred = predict_single(model, tokenizer, img_path)
+            t_elapsed = time.time() - t_start
+            inference_times.append(t_elapsed)
 
             matched = pred
             if pred not in CLASS_NAMES:
@@ -155,43 +174,83 @@ def evaluate(model_path):
             y_pred.append(matched)
 
             status = "O" if label == matched else "X"
-            print(f"  [{i+1}/{len(samples)}] {status}  정답: {label:10s}  예측: {matched}")
+            print(f"  [{i+1}/{len(samples)}] {status}  정답: {label:10s}  예측: {matched:10s}  ({t_elapsed:.2f}s)")
     except Exception as e:
-        notify_discord(f"❌ **[2/3] 추론 중 에러 발생:**\n```\n{e}\n```")
+        notify_discord_json(discord_embed(f"❌ [2/3] 추론 중 에러 발생: {e}"))
         raise
 
-    # 결과 출력
-    notify_discord("📈 **[3/3] 평가 결과를 집계합니다.**")
-    print("\n" + "=" * 50)
-    print("평가 결과")
-    print("=" * 50)
+    # ════════════════════════════════════════
+    # 6개 평가 메트릭
+    # ════════════════════════════════════════
+    notify_discord_json(discord_embed("📈 [3/3] 평가 결과를 집계합니다."))
 
-    acc = accuracy_score(y_true, y_pred)
-    print(f"\nAccuracy: {acc:.4f} ({sum(1 for t, p in zip(y_true, y_pred) if t == p)}/{len(y_true)})\n")
+    print("\n" + "=" * 60)
+    print("평가 결과 (6개 메트릭)")
+    print("=" * 60)
 
-    print("Classification Report:")
-    report = classification_report(y_true, y_pred, target_names=CLASS_NAMES, zero_division=0)
-    print(report)
-
-    print("Confusion Matrix:")
+    # 1. Confusion Matrix
     cm = confusion_matrix(y_true, y_pred, labels=CLASS_NAMES)
-    print(f"{'':15s} {'썩덩나무노린재':>10s} {'정상':>10s}")
+    print("\n[1] Confusion Matrix:")
+    print(f"{'':15s} {'예측:썩덩나무노린재':>15s} {'예측:정상':>10s}")
     for i, cls in enumerate(CLASS_NAMES):
-        print(f"{cls:15s} {cm[i][0]:10d} {cm[i][1]:10d}")
+        print(f"{'실제:'+cls:15s} {cm[i][0]:15d} {cm[i][1]:10d}")
 
+    # 2. Accuracy
+    acc = accuracy_score(y_true, y_pred)
+    correct = sum(1 for t, p in zip(y_true, y_pred) if t == p)
+    print(f"\n[2] Accuracy: {acc:.4f} ({correct}/{len(y_true)})")
+
+    # 3. Precision (per class + macro)
+    prec_per_class = precision_score(y_true, y_pred, labels=CLASS_NAMES, average=None, zero_division=0)
+    prec_macro = precision_score(y_true, y_pred, labels=CLASS_NAMES, average="macro", zero_division=0)
+    print(f"\n[3] Precision:")
+    for cls, p in zip(CLASS_NAMES, prec_per_class):
+        print(f"    {cls}: {p:.4f}")
+    print(f"    Macro: {prec_macro:.4f}")
+
+    # 4. Recall (per class + macro)
+    rec_per_class = recall_score(y_true, y_pred, labels=CLASS_NAMES, average=None, zero_division=0)
+    rec_macro = recall_score(y_true, y_pred, labels=CLASS_NAMES, average="macro", zero_division=0)
+    print(f"\n[4] Recall:")
+    for cls, r in zip(CLASS_NAMES, rec_per_class):
+        print(f"    {cls}: {r:.4f}")
+    print(f"    Macro: {rec_macro:.4f}")
+
+    # 5. Macro F1 Score
+    f1_per_class = f1_score(y_true, y_pred, labels=CLASS_NAMES, average=None, zero_division=0)
+    f1_macro = f1_score(y_true, y_pred, labels=CLASS_NAMES, average="macro", zero_division=0)
+    print(f"\n[5] Macro F1 Score:")
+    for cls, f in zip(CLASS_NAMES, f1_per_class):
+        print(f"    {cls}: {f:.4f}")
+    print(f"    Macro: {f1_macro:.4f}")
+
+    # 6. 추론 속도
+    avg_time = sum(inference_times) / len(inference_times)
+    total_time = sum(inference_times)
+    print(f"\n[6] 추론 속도:")
+    print(f"    총 소요 시간: {total_time:.1f}s")
+    print(f"    이미지당 평균: {avg_time:.2f}s")
+    print(f"    처리량: {len(samples)/total_time:.1f} img/s")
+
+    # 오답 목록
     wrong = [(t, p, s[0]) for (s, t, p) in zip(samples, y_true, y_pred) if t != p]
     if wrong:
         print(f"\n오답 {len(wrong)}건:")
         for t, p, path in wrong:
             print(f"  정답: {t:10s}  예측: {p:10s}  {os.path.basename(path)}")
 
+    print("=" * 60)
+
     # Discord 알림
-    notify_discord(
-        f"✅ **[3/3] 평가 완료!**\n"
-        f"Accuracy: {acc:.4f} ({sum(1 for t, p in zip(y_true, y_pred) if t == p)}/{len(y_true)})\n"
-        f"오답: {len(wrong)}건\n"
-        f"```\n{report}```"
-    )
+    notify_discord_json(discord_embed(
+        f"@everyone\n✅ [3/3] 평가 완료!\n\n"
+        f"Accuracy: {acc:.4f} ({correct}/{len(y_true)})\n"
+        f"Precision (Macro): {prec_macro:.4f}\n"
+        f"Recall (Macro): {rec_macro:.4f}\n"
+        f"Macro F1: {f1_macro:.4f}\n"
+        f"추론 속도: {avg_time:.2f}s/img ({len(samples)/total_time:.1f} img/s)\n"
+        f"오답: {len(wrong)}건"
+    ))
 
 
 def main():
