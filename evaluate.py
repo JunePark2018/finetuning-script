@@ -28,6 +28,17 @@ def notify_discord(message):
     except Exception as e:
         print(f"Discord 알림 실패: {e}")
 
+
+def notify_discord_json(payload):
+    """DISCORD_WEBHOOK_URL이 설정되어 있으면 JSON payload를 그대로 전송 (Embed 등)"""
+    url = os.environ.get("DISCORD_WEBHOOK_URL")
+    if not url:
+        return
+    try:
+        requests.post(url, json=payload, timeout=10)
+    except Exception as e:
+        print(f"Discord 알림 실패: {e}")
+
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(SCRIPT_DIR, "data")
 
