@@ -241,6 +241,31 @@ def evaluate(model_path):
 
     print("=" * 60)
 
+    # 평가 결과를 JSON으로 저장 (모델 디렉토리에 함께 보관)
+    from datetime import datetime
+    eval_results = {
+        "timestamp": datetime.now().isoformat(),
+        "test_samples": len(samples),
+        "confusion_matrix": cm.tolist(),
+        "accuracy": round(acc, 4),
+        "precision": {cls: round(float(p), 4) for cls, p in zip(CLASS_NAMES, prec_per_class)},
+        "precision_macro": round(float(prec_macro), 4),
+        "recall": {cls: round(float(r), 4) for cls, r in zip(CLASS_NAMES, rec_per_class)},
+        "recall_macro": round(float(rec_macro), 4),
+        "f1": {cls: round(float(f), 4) for cls, f in zip(CLASS_NAMES, f1_per_class)},
+        "f1_macro": round(float(f1_macro), 4),
+        "inference_speed": {
+            "avg_seconds_per_image": round(avg_time, 2),
+            "images_per_second": round(len(samples) / total_time, 1),
+            "total_seconds": round(total_time, 1),
+        },
+        "wrong_count": len(wrong),
+    }
+    eval_path = os.path.join(model_path, "evaluation_results.json")
+    with open(eval_path, "w", encoding="utf-8") as f:
+        json.dump(eval_results, f, ensure_ascii=False, indent=2)
+    print(f"\n평가 결과 저장: {eval_path}")
+
     # Discord 알림
     notify_discord_json(discord_embed(
         f"@everyone\n✅ [3/3] 평가 완료!\n\n"
