@@ -42,8 +42,7 @@ Image.MAX_IMAGE_PIXELS = None
 
 notify_discord("📂 **[1/9] 데이터셋 경로를 확인합니다.**")
 try:
-    SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-    DATA_DIR = os.path.join(SCRIPT_DIR, "data")
+    DATA_DIR = "/workspace/data"
 
     assert os.path.exists(os.path.join(DATA_DIR, "train.jsonl")), \
         f"데이터셋이 없습니다: {DATA_DIR}/train.jsonl"
@@ -74,6 +73,8 @@ try:
         "부가 설명 없이 이름만 출력하세요."
     )
 
+    BBOX_GROW_STAGE = 33
+
 
     def crop_to_bbox(img, bbox, padding_ratio=0.0):
         xtl, ytl = bbox["xtl"], bbox["ytl"]
@@ -94,7 +95,7 @@ try:
         with open(json_path, encoding="utf-8") as f:
             data = json.load(f)
         for obj in data["annotations"]["object"]:
-            if obj["grow"] == 33 and obj.get("points"):
+            if obj["grow"] == BBOX_GROW_STAGE and obj.get("points"):
                 return obj["points"][0]
         return None
 
@@ -348,6 +349,10 @@ except Exception as e:
 
 notify_discord("🔍 **[8/9] 추론 테스트를 시작합니다.**")
 try:
+    model, tokenizer = FastVisionModel.from_pretrained(
+        "pest-detector-lora",
+        load_in_4bit=False,
+    )
     FastVisionModel.for_inference(model)
 
     test_dir = os.path.join(DATA_DIR, "test", "썩덩나무노린재")
