@@ -80,6 +80,15 @@ print(f"  LORA_ALPHA     = {LORA_ALPHA}")
 print(f"  LEARNING_RATE  = {LEARNING_RATE}")
 print(f"  NUM_EPOCHS     = {NUM_EPOCHS}")
 print(f"  WARMUP_STEPS   = {WARMUP_STEPS}")
+
+# 고유 run name 생성 (파라미터 조합)
+RUN_NAME = f"r{LORA_R}_a{LORA_ALPHA}_lr{LEARNING_RATE}_bs{BATCH_SIZE}x{GRAD_ACCUM}_ep{NUM_EPOCHS}"
+OUTPUT_DIR = f"pest-detector-{RUN_NAME}"
+LORA_DIR = f"pest-lora-{RUN_NAME}"
+
+print(f"  RUN_NAME       = {RUN_NAME}")
+print(f"  OUTPUT_DIR     = {OUTPUT_DIR}")
+print(f"  LORA_DIR       = {LORA_DIR}")
 print("=" * 60)
 
 Image.MAX_IMAGE_PIXELS = None
@@ -362,8 +371,6 @@ try:
 
     FastVisionModel.for_training(model)
 
-    OUTPUT_DIR = "pest-detector-qwen3.5"
-
     trainer = SFTTrainer(
         model=model,
         tokenizer=tokenizer,
@@ -386,7 +393,7 @@ try:
             seed=42,
             output_dir=OUTPUT_DIR,
             report_to="wandb" if os.environ.get("WANDB_API_KEY") else "none",
-            run_name="pest-subset-qwen3.5",
+            run_name=RUN_NAME,
             remove_unused_columns=False,
             dataset_text_field="",
             dataset_kwargs={"skip_prepare_dataset": True},
@@ -419,8 +426,6 @@ except Exception as e:
 print("\n[7/9] 모델 저장...")
 notify_discord_json(discord_embed("💾 [7/9] LoRA 어댑터를 저장합니다."))
 try:
-    LORA_DIR = "pest-detector-lora"
-
     model.save_pretrained(LORA_DIR)
     tokenizer.save_pretrained(LORA_DIR)
     lora_files = os.listdir(LORA_DIR)
@@ -441,7 +446,7 @@ notify_discord_json(discord_embed("@everyone\n🔍 [8/9] 추론 테스트를 시
 try:
     print("  LoRA 어댑터 리로드 중...")
     model, tokenizer = FastVisionModel.from_pretrained(
-        "pest-detector-lora",
+        LORA_DIR,
         load_in_4bit=False,
     )
     FastVisionModel.for_inference(model)
@@ -498,31 +503,26 @@ except Exception as e:
 
 print("\n[9/9] HuggingFace Hub 업로드...")
 HF_TOKEN = os.environ.get("HF_TOKEN", "")
-HF_REPO_NAME = os.environ.get("HF_REPO_NAME", "")
 
-if HF_TOKEN and HF_REPO_NAME:
-    notify_discord_json(discord_embed("☁️ [9/9] HuggingFace Hub에 업로드합니다."))
+if HF_TOKEN:
+    HUB_REPO = f"pest-{RUN_NAME}"
+    notify_discord_json(discord_embed(f"☁️ [9/9] HuggingFace Hub에 업로드합니다. ({HUB_REPO})"))
     try:
-        print(f"  대상 레포: {HF_REPO_NAME}")
+        print(f"  대상 레포: {HUB_REPO}")
         t0 = time.time()
         model.push_to_hub(
-            HF_REPO_NAME,
+            HUB_REPO,
             tokenizer,
             token=HF_TOKEN,
         )
         print(f"  업로드 완료! ({time.time() - t0:.1f}s)")
-        notify_discord_json(discord_embed("✅ [9/9] 업로드 완료! 모든 파이프라인이 끝났습니다! 🎉"))
+        notify_discord_json(discord_embed(f"✅ [9/9] 업로드 완료! ({HUB_REPO}) 🎉"))
     except Exception as e:
-        notify_discord_json(discord_embed(f"❌ [9/9] HuggingFace Hub 업로드 중 에러 발생: {e}"))
+        notify_discord_json(discord_embed(f"❌ [9/9] Hub 업로드 중 에러 발생: {e}"))
         raise
 else:
-    missing = []
-    if not HF_TOKEN:
-        missing.append("HF_TOKEN")
-    if not HF_REPO_NAME:
-        missing.append("HF_REPO_NAME")
-    print(f"  {', '.join(missing)} 미설정 — 업로드 건너뜀")
-    notify_discord_json(discord_embed(f"✅ [9/9] Hub 업로드 건너뜀 ({', '.join(missing)} 미설정). 파이프라인 완료! 🎉"))
+    print("  HF_TOKEN 미설정 — 업로드 건너뜀")
+    notify_discord_json(discord_embed("✅ [9/9] Hub 업로드 건너뜀 (HF_TOKEN 미설정). 파이프라인 완료! 🎉"))
 
 print("\n" + "=" * 60)
 print("파이프라인 완료!")
