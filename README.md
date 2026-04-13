@@ -113,10 +113,18 @@ python inference.py --image test.jpg --model pest-detector-lora
 HF_TOKEN=hf_xxx python train.py
 ```
 
-## W&B (Weights & Biases)
+## W&B (Weights & Biases) — 선택 사항
 
-학습 지표가 자동으로 W&B에 기록됩니다.
+`WANDB_API_KEY` 환경변수가 설정되어 있으면 자동으로 W&B에 기록되고, 없으면 W&B 없이 학습됩니다.
 
-- 첫 실행 시 `wandb login`으로 API key 입력 필요 ([wandb.ai/authorize](https://wandb.ai/authorize)에서 발급)
+```bash
+# W&B 사용 시
+export WANDB_API_KEY=your_key_here   # wandb.ai/authorize 에서 발급
+python train.py
+
+# W&B 없이
+python train.py
+```
+
 - 대시보드에서 `train/loss`, `eval/loss`, `learning_rate` 등을 실시간 확인
 - run name: `pest-subset-qwen3.5`
