@@ -125,7 +125,10 @@ def preprocess_split(split="train"):
             else:
                 bbox = find_label_json(split, class_name, img_filename)
                 if bbox:
-                    if random.random() < 0.5:
+                        r = random.random()
+                    if r < 0.5:
+                        result = img
+                    elif r < 0.75:
                         result = crop_to_bbox(img, bbox, padding_ratio=0.0)
                     else:
                         result = crop_to_bbox(img, bbox, padding_ratio=0.5)

@@ -88,7 +88,7 @@ python inference.py --image test.jpg --model pest-detector-lora
 
 - **썩덩나무노린재** 이미지에는 `.jpg.json` 파일이 함께 있으며, 바운딩 박스 좌표(`xtl`, `ytl`, `xbr`, `ybr`)가 포함되어 있습니다.
 - **정상** 이미지에는 bbox JSON이 없습니다.
-- 전처리 시 해충 이미지는 bbox 기반으로 tight 크롭(50%) / context 크롭(50%) 적용됩니다.
+- 전처리 시 해충 이미지는 원본(50%) / bbox tight 크롭(25%) / bbox context 크롭(25%) 비율로 적용됩니다.
 
 ## 주요 하이퍼파라미터
 
