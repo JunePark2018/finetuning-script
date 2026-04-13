@@ -6,3 +6,4 @@ Pillow
 accelerate
 scikit-learn
 huggingface_hub
+wandb

@@ -1,0 +1,44 @@
+{
+    "description": {
+        "image": "V006_78_2_15_05_03_33_3_0071q_20201010_187.jpg",
+        "date": "2020/10/10",
+        "height": 4000,
+        "width": 6000,
+        "task": 78,
+        "type": 2,
+        "region": 7
+    },
+    "annotations": {
+        "crop": 5,
+        "area": 3,
+        "risk": 3,
+        "object": [
+            {
+                "id": 0,
+                "class": 15,
+                "grow": 33,
+                "points": [
+                    {
+                        "xtl": 3658,
+                        "ytl": 1840,
+                        "xbr": 4251,
+                        "ybr": 2412
+                    }
+                ]
+            },
+            {
+                "id": 1,
+                "class": 15,
+                "grow": 33,
+                "points": [
+                    {
+                        "xtl": 3620,
+                        "ytl": 1453,
+                        "xbr": 4016,
+                        "ybr": 1755
+                    }
+                ]
+            }
+        ]
+    }
+}

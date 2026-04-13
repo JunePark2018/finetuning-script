@@ -1,6 +1,7 @@
 """
-노지 작물 해충 진단 - Qwen3.5-9B LoRA 파인튜닝 스크립트
-데이터셋: Himedia-AI-01/pest-detection-korean (HuggingFace)
+노지 작물 해충 진단 (서브셋) - Qwen3.5-9B LoRA 파인튜닝 스크립트
+대상: 썩덩나무노린재 + 정상 (2클래스)
+데이터셋: data/ (로컬)
 환경: 32GB+ VRAM (A5000/A6000), bf16 LoRA
 """
 
@@ -9,32 +10,19 @@ import os
 import random
 
 from PIL import Image
-from huggingface_hub import snapshot_download
 
 Image.MAX_IMAGE_PIXELS = None
 
 # ════════════════════════════════════════
-# 1. 데이터셋 다운로드
+# 1. 데이터셋 경로
 # ════════════════════════════════════════
 
-DATA_DIR = "/workspace/data"
-HF_TOKEN = os.environ.get("HF_TOKEN", "")
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(SCRIPT_DIR, "data")
 
-if HF_TOKEN:
-    from huggingface_hub import login
-    login(token=HF_TOKEN)
-
-if not os.path.exists(os.path.join(DATA_DIR, "train.jsonl")):
-    print("데이터셋 다운로드 중...")
-    snapshot_download(
-        "Himedia-AI-01/pest-detection-korean",
-        repo_type="dataset",
-        local_dir=DATA_DIR,
-        max_workers=2,
-    )
-    print("다운로드 완료!")
-else:
-    print(f"데이터셋 이미 존재: {DATA_DIR}")
+assert os.path.exists(os.path.join(DATA_DIR, "train.jsonl")), \
+    f"데이터셋이 없습니다: {DATA_DIR}/train.jsonl"
+print(f"데이터셋 경로: {DATA_DIR}")
 
 # ════════════════════════════════════════
 # 2. 이미지 전처리 (크롭 → 디스크 저장)
@@ -271,7 +259,8 @@ trainer = SFTTrainer(
         lr_scheduler_type="linear",
         seed=42,
         output_dir=OUTPUT_DIR,
-        report_to="none",
+        report_to="wandb",
+        run_name="pest-subset-qwen3.5",
         remove_unused_columns=False,
         dataset_text_field="",
         dataset_kwargs={"skip_prepare_dataset": True},
@@ -304,11 +293,11 @@ HF_TOKEN = os.environ.get("HF_TOKEN", "")
 if HF_TOKEN:
     print("HuggingFace Hub에 업로드 중...")
     model.push_to_hub(
-        "Himedia-AI-01/pest-trained-result",
+        "YOUR_REPO_NAME",
         tokenizer,
         token=HF_TOKEN,
     )
-    print("업로드 완료! https://huggingface.co/Himedia-AI-01/pest-trained-result")
+    print("업로드 완료!")
 else:
     print("HF_TOKEN이 설정되지 않아 업로드를 건너뜁니다.")
     print("업로드하려면: HF_TOKEN=hf_xxx python train.py")

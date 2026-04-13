@@ -1,0 +1,31 @@
+{
+    "description": {
+        "image": "V006_78_2_15_00_07_33_0_8101b_20201112_230.jpg",
+        "date": "2020/11/12",
+        "height": 3096,
+        "width": 4128,
+        "task": 78,
+        "type": 2,
+        "region": 7
+    },
+    "annotations": {
+        "crop": 0,
+        "area": 7,
+        "risk": 0,
+        "object": [
+            {
+                "id": 0,
+                "class": 15,
+                "grow": 33,
+                "points": [
+                    {
+                        "xtl": 1823,
+                        "ytl": 1390,
+                        "xbr": 2253,
+                        "ybr": 1668
+                    }
+                ]
+            }
+        ]
+    }
+}

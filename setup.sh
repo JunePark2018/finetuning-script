@@ -9,32 +9,24 @@ pip install --upgrade pip
 pip install --upgrade typing_extensions
 pip install unsloth
 pip install "transformers>=5.2"
-pip install trl==0.22.2 datasets Pillow accelerate scikit-learn huggingface_hub
+pip install trl==0.22.2 datasets Pillow accelerate scikit-learn huggingface_hub wandb
 
 echo ""
 echo "=== Unsloth 설치 확인 ==="
 python -c "from unsloth import FastVisionModel; print('Unsloth OK')"
 
 echo ""
-echo "=== 데이터셋 다운로드 ==="
-if [ -z "$HF_TOKEN" ]; then
-    echo "HF_TOKEN이 설정되지 않았습니다."
-    echo "사용법: HF_TOKEN=hf_xxx bash setup.sh"
+echo "=== W&B 로그인 ==="
+wandb login
+
+echo ""
+echo "=== 데이터셋 확인 ==="
+if [ ! -f "data/train.jsonl" ]; then
+    echo "data/train.jsonl이 없습니다."
+    echo "data/ 폴더에 데이터셋을 먼저 배치해주세요."
     exit 1
 fi
-
-python -c "
-import os
-from huggingface_hub import login, snapshot_download
-login(token=os.environ['HF_TOKEN'])
-snapshot_download(
-    'Himedia-AI-01/pest-detection-korean',
-    repo_type='dataset',
-    local_dir='/workspace/data',
-    max_workers=2,
-)
-print('데이터셋 다운로드 완료: /workspace/data')
-"
+echo "데이터셋 확인 완료: data/"
 
 echo ""
 echo "=== 설정 완료 ==="
