@@ -141,3 +141,15 @@ python train.py
 
 - 대시보드에서 `train/loss`, `eval/loss`, `learning_rate` 등을 실시간 확인
 - run name: `pest-subset-qwen3.5`
+
+## Discord 알림 — 선택 사항
+
+`DISCORD_WEBHOOK_URL` 환경변수가 설정되어 있으면 학습/평가 결과를 디스코드 채널에 자동 전송합니다.
+
+```bash
+export DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
+python train.py      # 학습 시작/완료 알림
+python evaluate.py   # 평가 결과 (Accuracy, F1 등) 알림
+```
+
+웹훅 URL은 디스코드 채널 설정 → 연동 → 웹후크에서 생성할 수 있습니다.

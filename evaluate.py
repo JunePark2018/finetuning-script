@@ -7,6 +7,7 @@
 import argparse
 import json
 import os
+import requests
 
 from PIL import Image
 from unsloth import FastVisionModel
@@ -15,6 +16,17 @@ from sklearn.metrics import (
     classification_report,
     confusion_matrix,
 )
+
+
+def notify_discord(message):
+    """DISCORD_WEBHOOK_URL이 설정되어 있으면 메시지 전송"""
+    url = os.environ.get("DISCORD_WEBHOOK_URL")
+    if not url:
+        return
+    try:
+        requests.post(url, json={"content": message}, timeout=10)
+    except Exception as e:
+        print(f"Discord 알림 실패: {e}")
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(SCRIPT_DIR, "data")
@@ -152,6 +164,15 @@ def evaluate(model_path):
         print(f"\n오답 {len(wrong)}건:")
         for t, p, path in wrong:
             print(f"  정답: {t:10s}  예측: {p:10s}  {os.path.basename(path)}")
+
+    # Discord 알림
+    report = classification_report(y_true, y_pred, target_names=CLASS_NAMES, zero_division=0)
+    notify_discord(
+        f"📊 **평가 완료!**\n"
+        f"Accuracy: {acc:.4f} ({sum(1 for t, p in zip(y_true, y_pred) if t == p)}/{len(y_true)})\n"
+        f"오답: {len(wrong)}건\n"
+        f"```\n{report}```"
+    )
 
 
 def main():

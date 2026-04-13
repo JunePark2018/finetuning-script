@@ -8,8 +8,20 @@
 import json
 import os
 import random
+import requests
 
 from PIL import Image
+
+
+def notify_discord(message):
+    """DISCORD_WEBHOOK_URL이 설정되어 있으면 메시지 전송"""
+    url = os.environ.get("DISCORD_WEBHOOK_URL")
+    if not url:
+        return
+    try:
+        requests.post(url, json={"content": message}, timeout=10)
+    except Exception as e:
+        print(f"Discord 알림 실패: {e}")
 
 Image.MAX_IMAGE_PIXELS = None
 
@@ -274,8 +286,10 @@ trainer = SFTTrainer(
 )
 
 print("학습 시작!")
+notify_discord("🚀 학습 시작! (pest-subset-qwen3.5)")
 trainer.train()
 print("학습 완료!")
+notify_discord("✅ 학습 완료! 모델 저장 중...")
 
 # ════════════════════════════════════════
 # 7. 모델 저장
