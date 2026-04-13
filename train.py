@@ -12,7 +12,6 @@ from PIL import Image
 from huggingface_hub import snapshot_download
 
 Image.MAX_IMAGE_PIXELS = None
-MAX_IMAGE_SIZE = 768
 
 # ════════════════════════════════════════
 # 1. 데이터셋 다운로드
@@ -55,19 +54,6 @@ SYSTEM_MSG = (
     '해충이 없으면 "정상"이라고만 답하세요. '
     "부가 설명 없이 이름만 출력하세요."
 )
-
-
-def resize_if_needed(img, max_size=MAX_IMAGE_SIZE):
-    w, h = img.size
-    if max(w, h) <= max_size:
-        return img
-    if w >= h:
-        new_w = max_size
-        new_h = int(h * max_size / w)
-    else:
-        new_h = max_size
-        new_w = int(w * max_size / h)
-    return img.resize((new_w, new_h), Image.LANCZOS)
 
 
 def crop_to_bbox(img, bbox, padding_ratio=0.0):
@@ -147,7 +133,7 @@ def preprocess_split(split="train"):
             img = Image.open(img_path).convert("RGB")
 
             if label == "정상":
-                result = resize_if_needed(img)
+                result = img
             else:
                 bbox = find_label_json(split, class_name, img_filename)
                 if bbox:
@@ -155,9 +141,8 @@ def preprocess_split(split="train"):
                         result = crop_to_bbox(img, bbox, padding_ratio=0.0)
                     else:
                         result = crop_to_bbox(img, bbox, padding_ratio=0.5)
-                    result = resize_if_needed(result)
                 else:
-                    result = resize_if_needed(img)
+                    result = img
 
             result.save(out_path, "JPEG", quality=95)
             img.close()
