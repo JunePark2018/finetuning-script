@@ -63,6 +63,7 @@ def predict(image_path: str, model_path: str):
         temperature=0.1,
     )
     print()
+    image.close()
 
 
 def main():

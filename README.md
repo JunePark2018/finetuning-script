@@ -57,8 +57,8 @@ bash setup.sh
 이 스크립트가 하는 일:
 - pip 패키지 설치 (unsloth, trl, wandb 등)
 - Unsloth 설치 확인
-- W&B 로그인 (API key 입력)
-- `data/` 데이터셋 존재 여부 확인
+- W&B 활성화 확인 (`WANDB_API_KEY` 설정 시)
+- `/workspace/data/` 데이터셋 존재 여부 확인
 
 ### 3. 학습
 
