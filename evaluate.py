@@ -39,8 +39,7 @@ def notify_discord_json(payload):
     except Exception as e:
         print(f"Discord 알림 실패: {e}")
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.join(SCRIPT_DIR, "data")
+DATA_DIR = "/workspace/data"
 
 SYSTEM_MSG = (
     "당신은 작물 해충 식별 전문가입니다. "
@@ -118,41 +117,51 @@ def predict_single(model, tokenizer, image_path):
 def evaluate(model_path):
     """test 데이터셋 전체에 대해 평가 실행"""
     # 모델 로딩
-    print(f"모델 로딩: {model_path}")
-    model, tokenizer = FastVisionModel.from_pretrained(
-        model_path,
-        load_in_4bit=False,
-    )
-    FastVisionModel.for_inference(model)
+    notify_discord("🔍 **[1/3] 평가 모델을 로딩합니다.**")
+    try:
+        print(f"모델 로딩: {model_path}")
+        model, tokenizer = FastVisionModel.from_pretrained(
+            model_path,
+            load_in_4bit=False,
+        )
+        FastVisionModel.for_inference(model)
+        notify_discord("✅ **[1/3] 모델 로딩 완료!**")
+    except Exception as e:
+        notify_discord(f"❌ **[1/3] 모델 로딩 중 에러 발생:**\n```\n{e}\n```")
+        raise
 
-    # 데이터 로딩
-    samples = load_test_dataset()
-    print(f"테스트 샘플: {len(samples)}건\n")
+    # 데이터 로딩 + 추론
+    notify_discord("📊 **[2/3] 테스트 데이터 추론을 시작합니다.**")
+    try:
+        samples = load_test_dataset()
+        print(f"테스트 샘플: {len(samples)}건\n")
 
-    # 추론
-    y_true = []
-    y_pred = []
+        y_true = []
+        y_pred = []
 
-    for i, (img_path, label) in enumerate(samples):
-        pred = predict_single(model, tokenizer, img_path)
+        for i, (img_path, label) in enumerate(samples):
+            pred = predict_single(model, tokenizer, img_path)
 
-        # 예측값이 클래스 이름에 포함되지 않으면 가장 가까운 것으로 매칭
-        matched = pred
-        if pred not in CLASS_NAMES:
-            for cls in CLASS_NAMES:
-                if cls in pred:
-                    matched = cls
-                    break
-            else:
-                matched = pred  # 매칭 실패 시 원본 유지
+            matched = pred
+            if pred not in CLASS_NAMES:
+                for cls in CLASS_NAMES:
+                    if cls in pred:
+                        matched = cls
+                        break
+                else:
+                    matched = pred
 
-        y_true.append(label)
-        y_pred.append(matched)
+            y_true.append(label)
+            y_pred.append(matched)
 
-        status = "O" if label == matched else "X"
-        print(f"  [{i+1}/{len(samples)}] {status}  정답: {label:10s}  예측: {matched}")
+            status = "O" if label == matched else "X"
+            print(f"  [{i+1}/{len(samples)}] {status}  정답: {label:10s}  예측: {matched}")
+    except Exception as e:
+        notify_discord(f"❌ **[2/3] 추론 중 에러 발생:**\n```\n{e}\n```")
+        raise
 
     # 결과 출력
+    notify_discord("📈 **[3/3] 평가 결과를 집계합니다.**")
     print("\n" + "=" * 50)
     print("평가 결과")
     print("=" * 50)
@@ -161,7 +170,8 @@ def evaluate(model_path):
     print(f"\nAccuracy: {acc:.4f} ({sum(1 for t, p in zip(y_true, y_pred) if t == p)}/{len(y_true)})\n")
 
     print("Classification Report:")
-    print(classification_report(y_true, y_pred, target_names=CLASS_NAMES, zero_division=0))
+    report = classification_report(y_true, y_pred, target_names=CLASS_NAMES, zero_division=0)
+    print(report)
 
     print("Confusion Matrix:")
     cm = confusion_matrix(y_true, y_pred, labels=CLASS_NAMES)
@@ -169,7 +179,6 @@ def evaluate(model_path):
     for i, cls in enumerate(CLASS_NAMES):
         print(f"{cls:15s} {cm[i][0]:10d} {cm[i][1]:10d}")
 
-    # 틀린 샘플 요약
     wrong = [(t, p, s[0]) for (s, t, p) in zip(samples, y_true, y_pred) if t != p]
     if wrong:
         print(f"\n오답 {len(wrong)}건:")
@@ -177,9 +186,8 @@ def evaluate(model_path):
             print(f"  정답: {t:10s}  예측: {p:10s}  {os.path.basename(path)}")
 
     # Discord 알림
-    report = classification_report(y_true, y_pred, target_names=CLASS_NAMES, zero_division=0)
     notify_discord(
-        f"📊 **평가 완료!**\n"
+        f"✅ **[3/3] 평가 완료!**\n"
         f"Accuracy: {acc:.4f} ({sum(1 for t, p in zip(y_true, y_pred) if t == p)}/{len(y_true)})\n"
         f"오답: {len(wrong)}건\n"
         f"```\n{report}```"
