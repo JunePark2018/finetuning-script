@@ -427,12 +427,13 @@ except Exception as e:
 # ════════════════════════════════════════
 
 HF_TOKEN = os.environ.get("HF_TOKEN", "")
+HF_REPO_NAME = os.environ.get("HF_REPO_NAME", "")
 
-if HF_TOKEN:
+if HF_TOKEN and HF_REPO_NAME:
     notify_discord_json(discord_embed("☁️ [9/9] HuggingFace Hub에 업로드합니다."))
     try:
         model.push_to_hub(
-            "YOUR_REPO_NAME",
+            HF_REPO_NAME,
             tokenizer,
             token=HF_TOKEN,
         )
@@ -442,5 +443,10 @@ if HF_TOKEN:
         notify_discord_json(discord_embed(f"❌ [9/9] HuggingFace Hub 업로드 중 에러 발생: {e}"))
         raise
 else:
-    print("HF_TOKEN이 설정되지 않아 업로드를 건너뜁니다.")
-    notify_discord_json(discord_embed("✅ [9/9] Hub 업로드 건너뜀 (HF_TOKEN 미설정). 파이프라인 완료! 🎉"))
+    missing = []
+    if not HF_TOKEN:
+        missing.append("HF_TOKEN")
+    if not HF_REPO_NAME:
+        missing.append("HF_REPO_NAME")
+    print(f"{', '.join(missing)} 미설정 — 업로드를 건너뜁니다.")
+    notify_discord_json(discord_embed(f"✅ [9/9] Hub 업로드 건너뜀 ({', '.join(missing)} 미설정). 파이프라인 완료! 🎉"))
