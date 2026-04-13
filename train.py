@@ -145,8 +145,9 @@ def preprocess_split(split="train"):
                     result = img
 
             result.save(out_path, "JPEG", quality=95)
+            if result is not img:
+                result.close()
             img.close()
-            result.close()
 
             new_record = {
                 "messages": [
