@@ -144,12 +144,28 @@ python train.py
 
 ## Discord 알림 — 선택 사항
 
-`DISCORD_WEBHOOK_URL` 환경변수가 설정되어 있으면 학습/평가 결과를 디스코드 채널에 자동 전송합니다.
+`DISCORD_WEBHOOK_URL` 환경변수가 설정되어 있으면, 각 단계의 시작/완료/에러를 디스코드 채널에 Embed 형식으로 자동 전송합니다. 학습·추론·에러 단계에는 `@everyone` 멘션이 포함됩니다.
 
+### 설정 방법
+
+**RunPod 환경변수 (추천)**: Pod 설정 → Environment Variables에 추가하면 매번 입력할 필요 없음
+
+```
+DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
+```
+
+**또는 터미널에서 직접**:
 ```bash
 export DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
-python train.py      # 학습 시작/완료 알림
-python evaluate.py   # 평가 결과 (Accuracy, F1 등) 알림
+python train.py
 ```
+
+### 알림 단계
+
+| 스크립트 | 단계 | 내용 |
+|---|---|---|
+| train.py | [1/9]~[9/9] | 데이터 확인 → 전처리 → 로딩 → 모델 → LoRA → 학습 → 저장 → 추론 → 업로드 |
+| 노트북 | [1/10]~[10/10] | 패키지 설치 포함, 나머지 동일 |
+| evaluate.py | [1/3]~[3/3] | 모델 로딩 → 추론 → 결과 집계 |
 
 웹훅 URL은 디스코드 채널 설정 → 연동 → 웹후크에서 생성할 수 있습니다.
