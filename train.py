@@ -495,10 +495,13 @@ if HF_TOKEN:
             commit_message=f"Upload {RUN_NAME}",
         )
         uploaded_files = os.listdir(LORA_DIR)
+        hub_url = f"https://huggingface.co/{repo_url.repo_id}"
         print(f"  업로드 완료! ({time.time() - t0:.1f}s) — 파일 {len(uploaded_files)}개")
+        print(f"  Hub URL: {hub_url}")
         has_eval = "evaluation_results.json" in uploaded_files
         notify_discord_json(discord_embed(
             f"✅ [9/9] 업로드 완료! ({HUB_REPO}) 🎉\n"
+            f"🔗 {hub_url}\n"
             f"파일 {len(uploaded_files)}개 (evaluation_results.json {'포함' if has_eval else '없음'})"
         ))
     except Exception as e:
