@@ -63,6 +63,8 @@ bash setup.sh
 - W&B 활성화 확인 (`WANDB_API_KEY` 설정 시)
 - `/workspace/data/` 데이터셋 존재 여부 확인
 
+> **노트북 사용 시 주의**: 노트북 안에서 `[1/10] 패키지 설치` 셀을 실행하면, 그 직후 **Kernel → Restart Kernel** 이 필요합니다. (구버전 `typing_extensions`가 메모리에 캐시돼 있어 새 버전 import가 안 되기 때문). 노트북 안에 안내 셀이 들어 있습니다. 또는 노트북 열기 전에 터미널에서 `bash setup.sh`를 먼저 돌리면 재시작 없이 [2/10]부터 진행할 수 있습니다.
+
 ### 3. 학습
 
 ```bash
