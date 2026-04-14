@@ -513,6 +513,17 @@ else:
     print("  HF_TOKEN 미설정 — 업로드 건너뜀")
     notify_discord_json(discord_embed("✅ [9/9] Hub 업로드 건너뜀 (HF_TOKEN 미설정). 파이프라인 완료! 🎉"))
 
+# wandb run 명시적 종료 (atexit을 기다리지 않고 즉시 Finished 상태로 전환)
+# — sweep 중간 Ctrl+C 등으로 프로세스가 비정상 종료돼도 이 시점까진 깨끗이 마킹됨
+if os.environ.get("WANDB_API_KEY"):
+    try:
+        import wandb
+        if wandb.run is not None:
+            wandb.finish()
+            print("wandb run finished")
+    except Exception as e:
+        print(f"wandb finish 실패 (무시): {e}")
+
 print("\n" + "=" * 60)
 print("파이프라인 완료!")
 print("=" * 60)
