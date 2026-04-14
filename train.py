@@ -413,15 +413,17 @@ try:
         ),
     )
 
-    # 체크포인트 존재 확인
+    # 체크포인트 존재 확인 → resume 여부 결정 (빈 OUTPUT_DIR도 안전하게 처리)
     ckpts = [d for d in os.listdir(OUTPUT_DIR) if d.startswith("checkpoint-")] if os.path.exists(OUTPUT_DIR) else []
     if ckpts:
-        print(f"  체크포인트 발견: {sorted(ckpts)} → 이어서 학습")
+        print(f"  체크포인트 발견: {sorted(ckpts)[-1]} → 이어서 학습")
+        resume = True
     else:
         print(f"  체크포인트 없음 → 처음부터 학습")
+        resume = False
 
     t0 = time.time()
-    trainer.train(resume_from_checkpoint=True)
+    trainer.train(resume_from_checkpoint=resume)
     train_time = time.time() - t0
     print(f"  학습 소요 시간: {train_time/60:.1f}분")
     notify_discord_json(discord_embed("@everyone\n✅ [6/9] 학습 완료!"))
