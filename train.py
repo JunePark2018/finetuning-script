@@ -82,7 +82,7 @@ print(f"  NUM_EPOCHS     = {NUM_EPOCHS}")
 print(f"  WARMUP_STEPS   = {WARMUP_STEPS}")
 
 # 고유 run name 생성 (파라미터 조합)
-RUN_NAME = f"r{LORA_R}_a{LORA_ALPHA}_lr{LEARNING_RATE}_bs{BATCH_SIZE}x{GRAD_ACCUM}_ep{NUM_EPOCHS}"
+RUN_NAME = f"r{LORA_R}_a{LORA_ALPHA}_lr{LEARNING_RATE}_bs{BATCH_SIZE}x{GRAD_ACCUM}_ep{NUM_EPOCHS}_w{WARMUP_STEPS}"
 OUTPUT_DIR = f"pest-detector-{RUN_NAME}"
 LORA_DIR = f"pest-lora-{RUN_NAME}"
 
