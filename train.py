@@ -68,6 +68,7 @@ LORA_ALPHA = int(os.environ.get("LORA_ALPHA", 16))
 LEARNING_RATE = float(os.environ.get("LEARNING_RATE", 2e-4))
 NUM_EPOCHS = int(os.environ.get("NUM_EPOCHS", 3))
 WARMUP_STEPS = int(os.environ.get("WARMUP_STEPS", 50))
+MAX_STEPS = int(os.environ.get("MAX_STEPS", -1))  # > 0이면 num_train_epochs를 무시하고 step 수 직접 고정
 
 print("=" * 60)
 print("하이퍼파라미터")
@@ -78,11 +79,15 @@ print(f"  Total Batch    = {BATCH_SIZE} × {GRAD_ACCUM} = {BATCH_SIZE * GRAD_ACC
 print(f"  LORA_R         = {LORA_R}")
 print(f"  LORA_ALPHA     = {LORA_ALPHA}")
 print(f"  LEARNING_RATE  = {LEARNING_RATE}")
-print(f"  NUM_EPOCHS     = {NUM_EPOCHS}")
+if MAX_STEPS > 0:
+    print(f"  MAX_STEPS      = {MAX_STEPS} (num_train_epochs 무시됨)")
+else:
+    print(f"  NUM_EPOCHS     = {NUM_EPOCHS}")
 print(f"  WARMUP_STEPS   = {WARMUP_STEPS}")
 
-# 고유 run name 생성 (파라미터 조합)
-RUN_NAME = f"r{LORA_R}_a{LORA_ALPHA}_lr{LEARNING_RATE}_bs{BATCH_SIZE}x{GRAD_ACCUM}_ep{NUM_EPOCHS}_w{WARMUP_STEPS}"
+# 고유 run name 생성 (파라미터 조합) — MAX_STEPS 사용 시 ep → st로 표시
+_epoch_or_step = f"st{MAX_STEPS}" if MAX_STEPS > 0 else f"ep{NUM_EPOCHS}"
+RUN_NAME = f"r{LORA_R}_a{LORA_ALPHA}_lr{LEARNING_RATE}_bs{BATCH_SIZE}x{GRAD_ACCUM}_{_epoch_or_step}_w{WARMUP_STEPS}"
 OUTPUT_DIR = f"pest-detector-{RUN_NAME}"
 LORA_DIR = f"pest-lora-{RUN_NAME}"
 
@@ -366,8 +371,9 @@ except Exception as e:
 # 6. 학습
 # ════════════════════════════════════════
 
-print(f"\n[6/9] 학습 시작 ({NUM_EPOCHS} epochs, batch={BATCH_SIZE}×{GRAD_ACCUM}={BATCH_SIZE*GRAD_ACCUM}, lr={LEARNING_RATE})...")
-notify_discord_json(discord_embed(f"@everyone\n🚀 [6/9] 학습을 시작합니다! ({NUM_EPOCHS} epochs, batch={BATCH_SIZE}×{GRAD_ACCUM}={BATCH_SIZE*GRAD_ACCUM})"))
+_train_len = f"{MAX_STEPS} steps" if MAX_STEPS > 0 else f"{NUM_EPOCHS} epochs"
+print(f"\n[6/9] 학습 시작 ({_train_len}, batch={BATCH_SIZE}×{GRAD_ACCUM}={BATCH_SIZE*GRAD_ACCUM}, lr={LEARNING_RATE})...")
+notify_discord_json(discord_embed(f"@everyone\n🚀 [6/9] 학습을 시작합니다! ({_train_len}, batch={BATCH_SIZE}×{GRAD_ACCUM}={BATCH_SIZE*GRAD_ACCUM})"))
 try:
     from unsloth.trainer import UnslothVisionDataCollator
     from trl import SFTTrainer, SFTConfig
@@ -385,6 +391,7 @@ try:
             gradient_accumulation_steps=GRAD_ACCUM,
             warmup_steps=WARMUP_STEPS,
             num_train_epochs=NUM_EPOCHS,
+            max_steps=MAX_STEPS,  # -1 (기본): epoch 사용 / > 0: epoch 무시하고 step 수 직접 제어
             learning_rate=LEARNING_RATE,
             bf16=True,
             logging_steps=10,
