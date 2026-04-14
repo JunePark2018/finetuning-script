@@ -179,5 +179,5 @@ done
 `WANDB_API_KEY`가 설정되면 자동으로 W&B에 기록되고, 없으면 W&B 없이 학습됩니다.
 
 - 대시보드에서 `train/loss`, `eval/loss`, `learning_rate` 등을 실시간 확인
-- **Project**: 기본 `pest-detection` (모든 sweep run이 한 곳에 모여 비교 가능). `WANDB_PROJECT` 환경변수로 오버라이드 가능
+- **Project**: 기본 `pest-detection-subset` (모든 sweep run이 한 곳에 모여 비교 가능). `WANDB_PROJECT` 환경변수로 오버라이드 가능
 - **Run name**: `RUN_NAME`과 동일 — 파라미터로 자동 생성 (예: `r16_a16_lr0.0002_bs6x2_ep3_w50`)

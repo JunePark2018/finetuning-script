@@ -92,7 +92,7 @@ print(f"  LORA_DIR       = {LORA_DIR}")
 print("=" * 60)
 
 # W&B project 기본값 (환경변수 미설정 시) — 모든 sweep run이 한 project에 모여 비교 가능
-os.environ.setdefault("WANDB_PROJECT", "pest-detection")
+os.environ.setdefault("WANDB_PROJECT", "pest-detection-subset")
 
 Image.MAX_IMAGE_PIXELS = None
 
