@@ -1,7 +1,7 @@
 """
 노지 작물 해충 진단 (서브셋) - Qwen3.5-9B LoRA 파인튜닝 스크립트
 대상: 썩덩나무노린재 + 정상 (2클래스)
-데이터셋: /workspace/data (RunPod)
+데이터셋: 기본 ./data (DATA_DIR 환경변수로 오버라이드 가능)
 환경: 32GB+ VRAM (A5000/A6000), bf16 LoRA
 """
 
@@ -108,7 +108,7 @@ Image.MAX_IMAGE_PIXELS = None
 print("\n[1/9] 데이터셋 경로 확인...")
 notify_discord_json(discord_embed("📂 [1/9] 데이터셋 경로를 확인합니다.", thumbnail=True))
 try:
-    DATA_DIR = "/workspace/data"
+    DATA_DIR = os.environ.get("DATA_DIR", "data")
 
     assert os.path.exists(os.path.join(DATA_DIR, "train.jsonl")), \
         f"데이터셋이 없습니다: {DATA_DIR}/train.jsonl"

@@ -55,7 +55,7 @@ def discord_embed(description):
     return {**DISCORD_BOT, "embeds": [{"description": description, "color": DISCORD_COLOR}]}
 
 
-DATA_DIR = "/workspace/data"
+DATA_DIR = os.environ.get("DATA_DIR", "data")
 
 SYSTEM_MSG = (
     "당신은 작물 해충 식별 전문가입니다. "

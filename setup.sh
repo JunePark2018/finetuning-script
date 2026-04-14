@@ -26,12 +26,13 @@ fi
 
 echo ""
 echo "=== 데이터셋 확인 ==="
-if [ ! -f "/workspace/data/train.jsonl" ]; then
-    echo "/workspace/data/train.jsonl이 없습니다."
-    echo "data/ 폴더를 /workspace/data/로 배치해주세요."
+DATA_DIR="${DATA_DIR:-data}"   # 환경변수 미설정 시 기본 ./data (repo 루트 기준)
+if [ ! -f "$DATA_DIR/train.jsonl" ]; then
+    echo "$DATA_DIR/train.jsonl이 없습니다."
+    echo "data/ 폴더가 repo 루트에 있는지 확인하거나, DATA_DIR 환경변수로 다른 경로를 지정하세요."
     exit 1
 fi
-echo "데이터셋 확인 완료: /workspace/data/"
+echo "데이터셋 확인 완료: $DATA_DIR/"
 
 echo ""
 echo "=== 설정 완료 ==="
