@@ -479,7 +479,9 @@ print("\n[9/9] HuggingFace Hub 업로드...")
 HF_TOKEN = os.environ.get("HF_TOKEN", "")
 
 if HF_TOKEN:
-    HUB_REPO = f"pest-{RUN_NAME}"
+    # org namespace (비워두면 HF_TOKEN 소유자의 개인 계정에 업로드)
+    HF_ORG = os.environ.get("HF_ORG", "Himedia-AI-01")
+    HUB_REPO = f"{HF_ORG}/pest-{RUN_NAME}" if HF_ORG else f"pest-{RUN_NAME}"
     notify_discord_json(discord_embed(f"☁️ [9/9] HuggingFace Hub에 업로드합니다. ({HUB_REPO})"))
     try:
         from huggingface_hub import HfApi, create_repo
