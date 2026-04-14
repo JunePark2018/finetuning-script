@@ -167,8 +167,6 @@ def evaluate(model_path):
                     if cls in pred:
                         matched = cls
                         break
-                else:
-                    matched = pred
 
             y_true.append(label)
             y_pred.append(matched)
@@ -276,6 +274,8 @@ def evaluate(model_path):
         f"추론 속도: {avg_time:.2f}s/img ({len(samples)/total_time:.1f} img/s)\n"
         f"오답: {len(wrong)}건"
     ))
+
+    return eval_results, eval_path
 
 
 def main():

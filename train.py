@@ -316,7 +316,7 @@ try:
     print(f"  CUDA 사용 가능: {torch.cuda.is_available()}")
     if torch.cuda.is_available():
         print(f"  GPU: {torch.cuda.get_device_name(0)}")
-        print(f"  VRAM: {torch.cuda.get_device_properties(0).total_mem / 1024**3:.1f} GB")
+        print(f"  VRAM: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB")
 
     t0 = time.time()
     model, tokenizer = FastVisionModel.from_pretrained(
@@ -438,63 +438,25 @@ except Exception as e:
     raise
 
 # ════════════════════════════════════════
-# 8. 추론 테스트
+# 8. 평가 (test 200건 → evaluation_results.json)
 # ════════════════════════════════════════
 
-print("\n[8/9] 추론 테스트...")
-notify_discord_json(discord_embed("@everyone\n🔍 [8/9] 추론 테스트를 시작합니다."))
+print("\n[8/9] 평가 (test 200건)...")
+notify_discord_json(discord_embed("@everyone\n🔍 [8/9] 학습된 모델을 test 데이터셋으로 평가합니다."))
+EVAL_JSON_PATH = None
 try:
-    print("  LoRA 어댑터 리로드 중...")
-    model, tokenizer = FastVisionModel.from_pretrained(
-        LORA_DIR,
-        load_in_4bit=False,
-    )
-    FastVisionModel.for_inference(model)
+    # 학습 후 GPU 메모리 정리 (LoRA 리로드 전)
+    del trainer, model
+    import gc
+    gc.collect()
+    torch.cuda.empty_cache()
 
-    test_dir = os.path.join(DATA_DIR, "test", "썩덩나무노린재")
-    test_images = [f for f in os.listdir(test_dir) if f.lower().endswith((".jpg", ".jpeg", ".png"))]
-    TEST_IMAGE = os.path.join(test_dir, test_images[0])
-    print(f"  테스트 이미지: {TEST_IMAGE}")
-
-    image = Image.open(TEST_IMAGE).convert("RGB")
-    print(f"  이미지 크기: {image.size}")
-
-    messages = [
-        {"role": "system", "content": [
-            {"type": "text", "text": SYSTEM_MSG}
-        ]},
-        {"role": "user", "content": [
-            {"type": "image"},
-            {"type": "text", "text": "이 사진에 있는 해충의 이름을 알려주세요."},
-        ]},
-    ]
-
-    input_text = tokenizer.apply_chat_template(messages, add_generation_prompt=True)
-    inputs = tokenizer(
-        image,
-        input_text,
-        add_special_tokens=False,
-        return_tensors="pt",
-    ).to("cuda")
-    print(f"  입력 토큰 수: {inputs['input_ids'].shape[-1]}")
-
-    t0 = time.time()
-    output = model.generate(
-        **inputs,
-        max_new_tokens=20,
-        use_cache=True,
-        temperature=0.1,
-    )
-    inference_time = time.time() - t0
-    generated_ids = output[0][inputs["input_ids"].shape[-1]:]
-    prediction = tokenizer.decode(generated_ids, skip_special_tokens=True).strip()
-    image.close()
-
-    print(f"  예측 결과: {prediction}")
-    print(f"  추론 시간: {inference_time:.2f}s")
-    notify_discord_json(discord_embed(f"@everyone\n✅ [8/9] 추론 테스트 완료! 예측: {prediction}"))
+    from evaluate import evaluate as run_evaluation
+    _, EVAL_JSON_PATH = run_evaluation(LORA_DIR)
+    print(f"  평가 결과 저장: {EVAL_JSON_PATH}")
+    notify_discord_json(discord_embed("@everyone\n✅ [8/9] 평가 완료! evaluation_results.json 저장됨."))
 except Exception as e:
-    notify_discord_json(discord_embed(f"@everyone\n❌ [8/9] 추론 테스트 중 에러 발생: {e}"))
+    notify_discord_json(discord_embed(f"@everyone\n❌ [8/9] 평가 중 에러 발생: {e}"))
     raise
 
 # ════════════════════════════════════════
@@ -508,15 +470,25 @@ if HF_TOKEN:
     HUB_REPO = f"pest-{RUN_NAME}"
     notify_discord_json(discord_embed(f"☁️ [9/9] HuggingFace Hub에 업로드합니다. ({HUB_REPO})"))
     try:
+        from huggingface_hub import HfApi, create_repo
+
         print(f"  대상 레포: {HUB_REPO}")
         t0 = time.time()
-        model.push_to_hub(
-            HUB_REPO,
-            tokenizer,
-            token=HF_TOKEN,
+        repo_url = create_repo(HUB_REPO, token=HF_TOKEN, exist_ok=True, private=False)
+        api = HfApi(token=HF_TOKEN)
+        # LORA_DIR 전체 업로드 (LoRA 어댑터 + tokenizer + evaluation_results.json)
+        api.upload_folder(
+            folder_path=LORA_DIR,
+            repo_id=repo_url.repo_id,
+            commit_message=f"Upload {RUN_NAME}",
         )
-        print(f"  업로드 완료! ({time.time() - t0:.1f}s)")
-        notify_discord_json(discord_embed(f"✅ [9/9] 업로드 완료! ({HUB_REPO}) 🎉"))
+        uploaded_files = os.listdir(LORA_DIR)
+        print(f"  업로드 완료! ({time.time() - t0:.1f}s) — 파일 {len(uploaded_files)}개")
+        has_eval = "evaluation_results.json" in uploaded_files
+        notify_discord_json(discord_embed(
+            f"✅ [9/9] 업로드 완료! ({HUB_REPO}) 🎉\n"
+            f"파일 {len(uploaded_files)}개 (evaluation_results.json {'포함' if has_eval else '없음'})"
+        ))
     except Exception as e:
         notify_discord_json(discord_embed(f"❌ [9/9] Hub 업로드 중 에러 발생: {e}"))
         raise
