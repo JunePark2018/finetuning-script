@@ -11,6 +11,7 @@ import os
 import random
 import time
 import requests
+from datetime import datetime
 
 from PIL import Image
 
@@ -86,13 +87,17 @@ else:
     print(f"  NUM_EPOCHS     = {NUM_EPOCHS}")
 print(f"  WARMUP_STEPS   = {WARMUP_STEPS}")
 
-# 고유 run name 생성 (파라미터 조합) — MAX_STEPS 사용 시 ep → st로 표시
+# 고유 run name 생성 — 타임스탬프 prefix + 파라미터 조합
+# RUN_NAME env로 명시하면 그 이름을 그대로 사용 (resume 시 유용)
 _epoch_or_step = f"st{MAX_STEPS}" if MAX_STEPS > 0 else f"ep{NUM_EPOCHS}"
-RUN_NAME = f"r{LORA_R}_a{LORA_ALPHA}_lr{LEARNING_RATE}_bs{BATCH_SIZE}x{GRAD_ACCUM}_{_epoch_or_step}_w{WARMUP_STEPS}"
+TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
+_default_run = f"{TIMESTAMP}_r{LORA_R}_a{LORA_ALPHA}_lr{LEARNING_RATE}_bs{BATCH_SIZE}x{GRAD_ACCUM}_{_epoch_or_step}_w{WARMUP_STEPS}"
+RUN_NAME = os.environ.get("RUN_NAME") or _default_run
 OUTPUT_DIR = f"pest-detector-{RUN_NAME}"
 LORA_DIR = f"pest-lora-{RUN_NAME}"
 
-print(f"  RUN_NAME       = {RUN_NAME}")
+print(f"  TIMESTAMP      = {TIMESTAMP}")
+print(f"  RUN_NAME       = {RUN_NAME}{' (env override)' if os.environ.get('RUN_NAME') else ''}")
 print(f"  OUTPUT_DIR     = {OUTPUT_DIR}")
 print(f"  LORA_DIR       = {LORA_DIR}")
 print("=" * 60)
@@ -344,11 +349,13 @@ except Exception as e:
 print("\n[4/9] 모델 로딩...")
 notify_discord_json(discord_embed("🤖 [4/9] Qwen3.5-9B 모델을 로딩합니다."))
 try:
-    import torch
-    from unsloth import FastVisionModel
-
+    # ⚠️ HF cache 환경변수는 torch/unsloth import 전에 설정해야 함
+    # (cache 경로가 import 시점에 한 번 읽히기 때문)
     os.environ["HF_HOME"] = "/workspace/hf_cache"
     os.environ["TRANSFORMERS_CACHE"] = "/workspace/hf_cache"
+
+    import torch
+    from unsloth import FastVisionModel
 
     print(f"  HF_HOME = {os.environ['HF_HOME']}")
     print(f"  CUDA 사용 가능: {torch.cuda.is_available()}")

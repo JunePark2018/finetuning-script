@@ -1,7 +1,7 @@
 """
 노지 작물 해충 진단 - 추론 스크립트 (전체 데이터셋)
 클래스 목록은 모델 디렉토리의 class_names.json에서 로드 (선택적).
-사용법: python inference.py --image test.jpg --model pest-detector-lora
+사용법: python inference.py --image test.jpg --model pest-lora-<RUN_NAME>
 """
 
 import argparse
@@ -84,7 +84,7 @@ def predict(image_path: str, model_path: str):
 def main():
     parser = argparse.ArgumentParser(description="해충 진단 추론")
     parser.add_argument("--image", required=True, help="이미지 경로")
-    parser.add_argument("--model", default="pest-detector-lora", help="LoRA 모델 경로")
+    parser.add_argument("--model", required=True, help="LoRA 모델 경로 (예: pest-lora-r16_a16_...)")
     args = parser.parse_args()
 
     predict(args.image, args.model)

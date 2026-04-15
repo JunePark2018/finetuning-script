@@ -2,7 +2,7 @@
 노지 작물 해충 진단 - 평가 스크립트 (전체 데이터셋)
 클래스 목록은 모델 디렉토리의 class_names.json에서 로드 (학습 시 생성됨).
 평가 split: EVAL_SPLIT 환경변수 (기본 val).
-사용법: python evaluate.py --model pest-detector-lora
+사용법: python evaluate.py --model pest-lora-<RUN_NAME>
 """
 
 import argparse
@@ -306,7 +306,7 @@ def evaluate(model_path):
 
 def main():
     parser = argparse.ArgumentParser(description="해충 진단 모델 평가")
-    parser.add_argument("--model", default="pest-detector-lora", help="LoRA 모델 경로")
+    parser.add_argument("--model", required=True, help="LoRA 모델 경로 (예: pest-lora-r16_a16_...)")
     args = parser.parse_args()
 
     evaluate(args.model)
