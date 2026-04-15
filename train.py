@@ -1,7 +1,8 @@
 """
-노지 작물 해충 진단 (서브셋) - Qwen3.5-9B LoRA 파인튜닝 스크립트
-대상: 썩덩나무노린재 + 정상 (2클래스)
-데이터셋: 기본 ./data (DATA_DIR 환경변수로 오버라이드 가능)
+노지 작물 해충 진단 - Qwen3.5-9B LoRA 파인튜닝 스크립트 (전체 데이터셋)
+대상: 전체 해충 데이터셋 (클래스 수는 데이터셋에서 동적 추출)
+데이터셋: HF Hub의 Himedia-AI-01/pest-detection-korean (gated — HF_TOKEN 필요)
+         DATA_DIR이 이미 채워져 있으면 다운로드 건너뜀
 환경: 32GB+ VRAM (A5000/A6000), bf16 LoRA
 """
 
@@ -10,6 +11,7 @@ import os
 import random
 import time
 import requests
+from datetime import datetime
 
 from PIL import Image
 
@@ -85,40 +87,73 @@ else:
     print(f"  NUM_EPOCHS     = {NUM_EPOCHS}")
 print(f"  WARMUP_STEPS   = {WARMUP_STEPS}")
 
-# 고유 run name 생성 (파라미터 조합) — MAX_STEPS 사용 시 ep → st로 표시
+# 고유 run name 생성 — 타임스탬프 prefix + 파라미터 조합
+# RUN_NAME env로 명시하면 그 이름을 그대로 사용 (resume 시 유용)
 _epoch_or_step = f"st{MAX_STEPS}" if MAX_STEPS > 0 else f"ep{NUM_EPOCHS}"
-RUN_NAME = f"r{LORA_R}_a{LORA_ALPHA}_lr{LEARNING_RATE}_bs{BATCH_SIZE}x{GRAD_ACCUM}_{_epoch_or_step}_w{WARMUP_STEPS}"
+TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
+_default_run = f"{TIMESTAMP}_r{LORA_R}_a{LORA_ALPHA}_lr{LEARNING_RATE}_bs{BATCH_SIZE}x{GRAD_ACCUM}_{_epoch_or_step}_w{WARMUP_STEPS}"
+RUN_NAME = os.environ.get("RUN_NAME") or _default_run
 OUTPUT_DIR = f"pest-detector-{RUN_NAME}"
 LORA_DIR = f"pest-lora-{RUN_NAME}"
 
-print(f"  RUN_NAME       = {RUN_NAME}")
+print(f"  TIMESTAMP      = {TIMESTAMP}")
+print(f"  RUN_NAME       = {RUN_NAME}{' (env override)' if os.environ.get('RUN_NAME') else ''}")
 print(f"  OUTPUT_DIR     = {OUTPUT_DIR}")
 print(f"  LORA_DIR       = {LORA_DIR}")
 print("=" * 60)
 
 # W&B project 기본값 (환경변수 미설정 시) — 모든 sweep run이 한 project에 모여 비교 가능
-os.environ.setdefault("WANDB_PROJECT", "pest-detection-subset")
+os.environ.setdefault("WANDB_PROJECT", "pest-detection-full")
+
+DATASET_REPO = os.environ.get("DATASET_REPO", "Himedia-AI-01/pest-detection-korean")
+FORCE_DOWNLOAD = os.environ.get("FORCE_DOWNLOAD", "0") == "1"
 
 Image.MAX_IMAGE_PIXELS = None
 
 # ════════════════════════════════════════
-# 1. 데이터셋 경로
+# 1. 데이터셋 준비 (HF Hub에서 자동 다운로드)
 # ════════════════════════════════════════
 
-print("\n[1/9] 데이터셋 경로 확인...")
-notify_discord_json(discord_embed("📂 [1/9] 데이터셋 경로를 확인합니다.", thumbnail=True))
+print("\n[1/9] 데이터셋 준비...")
+notify_discord_json(discord_embed(f"📂 [1/9] 데이터셋을 준비합니다. ({DATASET_REPO})", thumbnail=True))
 try:
     DATA_DIR = os.environ.get("DATA_DIR", "data")
+    train_jsonl = os.path.join(DATA_DIR, "train.jsonl")
 
-    assert os.path.exists(os.path.join(DATA_DIR, "train.jsonl")), \
-        f"데이터셋이 없습니다: {DATA_DIR}/train.jsonl"
+    if FORCE_DOWNLOAD or not os.path.exists(train_jsonl):
+        from huggingface_hub import snapshot_download
+        hf_token = os.environ.get("HF_TOKEN") or None
+        print(f"  HF Hub에서 다운로드: {DATASET_REPO} → {DATA_DIR}")
+        t0 = time.time()
+        snapshot_download(
+            repo_id=DATASET_REPO,
+            repo_type="dataset",
+            local_dir=DATA_DIR,
+            token=hf_token,
+        )
+        print(f"  다운로드 완료: {time.time() - t0:.1f}s")
+    else:
+        print(f"  기존 데이터 재사용: {DATA_DIR}/train.jsonl")
+
+    assert os.path.exists(train_jsonl), f"데이터셋 다운로드 실패: {train_jsonl} 없음"
+
+    # 클래스 목록 동적 추출 (train/ 하위 폴더명)
+    class_dir = os.path.join(DATA_DIR, "train")
+    CLASS_NAMES = sorted(d for d in os.listdir(class_dir)
+                         if os.path.isdir(os.path.join(class_dir, d)))
+    assert CLASS_NAMES, f"클래스 폴더가 없습니다: {class_dir}"
+
     print(f"  DATA_DIR = {DATA_DIR}")
     print(f"  train.jsonl ✓")
     print(f"  val.jsonl   {'✓' if os.path.exists(os.path.join(DATA_DIR, 'val.jsonl')) else '✗'}")
     print(f"  test.jsonl  {'✓' if os.path.exists(os.path.join(DATA_DIR, 'test.jsonl')) else '✗'}")
-    notify_discord_json(discord_embed("✅ [1/9] 데이터셋 경로 확인 완료. (train.jsonl, val.jsonl)"))
+    print(f"  클래스 수: {len(CLASS_NAMES)}")
+    print(f"  클래스 목록: {CLASS_NAMES}")
+    notify_discord_json(discord_embed(
+        f"✅ [1/9] 데이터셋 준비 완료. ({len(CLASS_NAMES)}클래스)"
+    ))
 except Exception as e:
-    notify_discord_json(discord_embed(f"❌ [1/9] 데이터셋 경로 확인 실패: {e}"))
+    notify_discord_json(discord_embed(f"❌ [1/9] 데이터셋 준비 실패: {e}"))
     raise
 
 # ════════════════════════════════════════
@@ -314,11 +349,13 @@ except Exception as e:
 print("\n[4/9] 모델 로딩...")
 notify_discord_json(discord_embed("🤖 [4/9] Qwen3.5-9B 모델을 로딩합니다."))
 try:
-    import torch
-    from unsloth import FastVisionModel
-
+    # ⚠️ HF cache 환경변수는 torch/unsloth import 전에 설정해야 함
+    # (cache 경로가 import 시점에 한 번 읽히기 때문)
     os.environ["HF_HOME"] = "/workspace/hf_cache"
     os.environ["TRANSFORMERS_CACHE"] = "/workspace/hf_cache"
+
+    import torch
+    from unsloth import FastVisionModel
 
     print(f"  HF_HOME = {os.environ['HF_HOME']}")
     print(f"  CUDA 사용 가능: {torch.cuda.is_available()}")
@@ -440,11 +477,14 @@ notify_discord_json(discord_embed("💾 [7/9] LoRA 어댑터를 저장합니다.
 try:
     model.save_pretrained(LORA_DIR)
     tokenizer.save_pretrained(LORA_DIR)
+    with open(os.path.join(LORA_DIR, "class_names.json"), "w", encoding="utf-8") as f:
+        json.dump(CLASS_NAMES, f, ensure_ascii=False, indent=2)
     lora_files = os.listdir(LORA_DIR)
     lora_size = sum(os.path.getsize(os.path.join(LORA_DIR, f)) for f in lora_files) / 1024**2
     print(f"  저장 경로: {LORA_DIR}/")
     print(f"  파일 수: {len(lora_files)}, 총 크기: {lora_size:.1f} MB")
-    notify_discord_json(discord_embed("✅ [7/9] 모델 저장 완료! (pest-detector-lora/)"))
+    print(f"  class_names.json ({len(CLASS_NAMES)}클래스) 저장됨")
+    notify_discord_json(discord_embed(f"✅ [7/9] 모델 저장 완료! ({LORA_DIR}/, {len(CLASS_NAMES)}클래스)"))
 except Exception as e:
     notify_discord_json(discord_embed(f"❌ [7/9] 모델 저장 중 에러 발생: {e}"))
     raise
@@ -453,8 +493,9 @@ except Exception as e:
 # 8. 평가 (test 200건 → evaluation_results.json)
 # ════════════════════════════════════════
 
-print("\n[8/9] 평가 (test 200건)...")
-notify_discord_json(discord_embed("@everyone\n🔍 [8/9] 학습된 모델을 test 데이터셋으로 평가합니다."))
+EVAL_SPLIT = os.environ.get("EVAL_SPLIT", "val")
+print(f"\n[8/9] 평가 (split={EVAL_SPLIT})...")
+notify_discord_json(discord_embed(f"@everyone\n🔍 [8/9] 학습된 모델을 {EVAL_SPLIT} 데이터셋으로 평가합니다."))
 EVAL_JSON_PATH = None
 try:
     # 학습 후 GPU 메모리 정리 (LoRA 리로드 전)

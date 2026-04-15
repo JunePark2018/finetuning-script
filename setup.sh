@@ -26,13 +26,18 @@ fi
 
 echo ""
 echo "=== 데이터셋 확인 ==="
-DATA_DIR="${DATA_DIR:-data}"   # 환경변수 미설정 시 기본 ./data (repo 루트 기준)
-if [ ! -f "$DATA_DIR/train.jsonl" ]; then
-    echo "$DATA_DIR/train.jsonl이 없습니다."
-    echo "data/ 폴더가 repo 루트에 있는지 확인하거나, DATA_DIR 환경변수로 다른 경로를 지정하세요."
-    exit 1
+DATA_DIR="${DATA_DIR:-data}"
+if [ -f "$DATA_DIR/train.jsonl" ]; then
+    echo "기존 데이터셋 발견: $DATA_DIR/ (다운로드 건너뜀)"
+else
+    echo "$DATA_DIR/train.jsonl 없음 — train.py 실행 시 HF Hub에서 자동 다운로드됩니다."
+    if [ -z "$HF_TOKEN" ]; then
+        echo "⚠️  HF_TOKEN이 설정돼 있지 않습니다. 데이터셋이 gated라면 다운로드에 실패합니다."
+        echo "   export HF_TOKEN=hf_xxx 로 설정하거나, RunPod Env에 등록하세요."
+    else
+        echo "HF_TOKEN 감지 — 다운로드 준비 완료"
+    fi
 fi
-echo "데이터셋 확인 완료: $DATA_DIR/"
 
 echo ""
 echo "=== 설정 완료 ==="

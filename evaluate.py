@@ -1,7 +1,8 @@
 """
-노지 작물 해충 진단 (서브셋) - 평가 스크립트
-대상: 썩덩나무노린재 + 정상 (2클래스)
-사용법: python evaluate.py --model pest-detector-lora
+노지 작물 해충 진단 - 평가 스크립트 (전체 데이터셋)
+클래스 목록은 모델 디렉토리의 class_names.json에서 로드 (학습 시 생성됨).
+평가 split: EVAL_SPLIT 환경변수 (기본 val).
+사용법: python evaluate.py --model pest-lora-<RUN_NAME>
 """
 
 import argparse
@@ -56,6 +57,7 @@ def discord_embed(description):
 
 
 DATA_DIR = os.environ.get("DATA_DIR", "data")
+EVAL_SPLIT = os.environ.get("EVAL_SPLIT", "val")
 
 SYSTEM_MSG = (
     "당신은 작물 해충 식별 전문가입니다. "
@@ -64,13 +66,27 @@ SYSTEM_MSG = (
     "부가 설명 없이 이름만 출력하세요."
 )
 
-CLASS_NAMES = ["썩덩나무노린재", "정상"]
+
+def load_class_names(model_path):
+    """모델 디렉토리의 class_names.json에서 클래스 목록 로드.
+    파일이 없으면 DATA_DIR/train/ 하위 폴더명에서 추출."""
+    path = os.path.join(model_path, "class_names.json")
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    train_dir = os.path.join(DATA_DIR, "train")
+    if os.path.isdir(train_dir):
+        return sorted(d for d in os.listdir(train_dir)
+                      if os.path.isdir(os.path.join(train_dir, d)))
+    raise FileNotFoundError(
+        f"class_names.json 없음 ({path}) & {train_dir}도 없음. 학습 시 class_names.json 저장 여부 확인."
+    )
 
 
-def load_test_dataset():
-    """test.jsonl에서 (이미지 경로, 정답 라벨) 리스트 반환"""
-    jsonl_path = os.path.join(DATA_DIR, "test.jsonl")
-    assert os.path.exists(jsonl_path), f"test.jsonl이 없습니다: {jsonl_path}"
+def load_eval_dataset(split):
+    """{split}.jsonl에서 (이미지 경로, 정답 라벨) 리스트 반환"""
+    jsonl_path = os.path.join(DATA_DIR, f"{split}.jsonl")
+    assert os.path.exists(jsonl_path), f"{split}.jsonl이 없습니다: {jsonl_path}"
 
     samples = []
     with open(jsonl_path, "r", encoding="utf-8") as f:
@@ -130,9 +146,12 @@ def predict_single(model, tokenizer, image_path):
 
 
 def evaluate(model_path):
-    """test 데이터셋 전체에 대해 평가 실행"""
+    """평가 split 전체에 대해 평가 실행"""
+    CLASS_NAMES = load_class_names(model_path)
+    print(f"클래스 ({len(CLASS_NAMES)}개): {CLASS_NAMES}")
+
     # 모델 로딩
-    notify_discord_json(discord_embed("🔍 [1/3] 평가 모델을 로딩합니다."))
+    notify_discord_json(discord_embed(f"🔍 [1/3] 평가 모델을 로딩합니다. ({len(CLASS_NAMES)}클래스)"))
     try:
         print(f"모델 로딩: {model_path}")
         model, tokenizer = FastVisionModel.from_pretrained(
@@ -146,10 +165,10 @@ def evaluate(model_path):
         raise
 
     # 데이터 로딩 + 추론
-    notify_discord_json(discord_embed("📊 [2/3] 테스트 데이터 추론을 시작합니다."))
+    notify_discord_json(discord_embed(f"📊 [2/3] {EVAL_SPLIT} 데이터 추론을 시작합니다."))
     try:
-        samples = load_test_dataset()
-        print(f"테스트 샘플: {len(samples)}건\n")
+        samples = load_eval_dataset(EVAL_SPLIT)
+        print(f"평가 샘플 ({EVAL_SPLIT}): {len(samples)}건\n")
 
         y_true = []
         y_pred = []
@@ -186,12 +205,16 @@ def evaluate(model_path):
     print("평가 결과 (6개 메트릭)")
     print("=" * 60)
 
-    # 1. Confusion Matrix
+    # 1. Confusion Matrix (N×N 동적 렌더링)
     cm = confusion_matrix(y_true, y_pred, labels=CLASS_NAMES)
     print("\n[1] Confusion Matrix:")
-    print(f"{'':15s} {'예측:썩덩나무노린재':>15s} {'예측:정상':>10s}")
+    col_w = max(6, max(len(c) for c in CLASS_NAMES) + 2)
+    header = " " * 18 + "".join(f"{('예측:'+c)[:col_w]:>{col_w}}" for c in CLASS_NAMES)
+    print(header)
     for i, cls in enumerate(CLASS_NAMES):
-        print(f"{'실제:'+cls:15s} {cm[i][0]:15d} {cm[i][1]:10d}")
+        row_label = f"{'실제:'+cls:18s}"
+        row_cells = "".join(f"{cm[i][j]:>{col_w}d}" for j in range(len(CLASS_NAMES)))
+        print(row_label + row_cells)
 
     # 2. Accuracy
     acc = accuracy_score(y_true, y_pred)
@@ -243,7 +266,10 @@ def evaluate(model_path):
     from datetime import datetime
     eval_results = {
         "timestamp": datetime.now().isoformat(),
-        "test_samples": len(samples),
+        "eval_split": EVAL_SPLIT,
+        "num_samples": len(samples),
+        "num_classes": len(CLASS_NAMES),
+        "class_names": CLASS_NAMES,
         "confusion_matrix": cm.tolist(),
         "accuracy": round(acc, 4),
         "precision": {cls: round(float(p), 4) for cls, p in zip(CLASS_NAMES, prec_per_class)},
@@ -280,7 +306,7 @@ def evaluate(model_path):
 
 def main():
     parser = argparse.ArgumentParser(description="해충 진단 모델 평가")
-    parser.add_argument("--model", default="pest-detector-lora", help="LoRA 모델 경로")
+    parser.add_argument("--model", required=True, help="LoRA 모델 경로 (예: pest-lora-r16_a16_...)")
     args = parser.parse_args()
 
     evaluate(args.model)
